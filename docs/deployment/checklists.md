@@ -167,13 +167,49 @@ transforming the body breaks HMAC verification; see
 
 ---
 
-## E. Pre-launch gate
+## E. Infrastructure prerequisites (before deployment)
+
+- [ ] Persistent server / host (always-on)
+- [ ] Reverse proxy installed and configured (serves `apps/web/dist`, proxies `/api`)
+- [ ] TLS certificate obtained and installed
+- [ ] DNS record pointing the hostname at the host
+- [ ] Process supervisor installed (NSSM or PM2), **one instance**, auto-restart
+- [ ] **Exactly ONE Node process** running `apps/server/dist/index.js`
+- [ ] Persistent **database** directory — outside the repository
+- [ ] Persistent **backup** directory — outside the application tree
+- [ ] Persistent **application** directory — fixed permanently (absolute media paths)
+- [ ] Persistent `storage/uploads` — survives in-place upgrades
+
+> **Multiple Node instances are NOT supported.** `express-session` MemoryStore is
+> process-local and the campaign scheduler + queue worker are process-local
+> `setInterval` loops. A second instance causes non-shared sessions and
+> **duplicate WhatsApp sends**. Never use `cluster`, `instances > 1`,
+> `pm2 --scale`, or an IIS node pool.
+
+## F. Production ADMIN account
+
+- [ ] **`prisma/seed.ts` was NOT run in production**
+- [ ] The seed email `admin@japa.local` is **not** in use
+- [ ] The seed development password is **not** in use anywhere
+- [ ] The first ADMIN was created through the application's supported user
+      creation flow (`POST /api/users` or **Users → Add user**)
+- [ ] The password is **strong and unique**, satisfying the application's
+      existing **8–128 character** validation
+- [ ] The strong-password ADMIN can log in and reach an ADMIN-only screen
+      (**Users** / **Settings**)
+- [ ] Any temporary bootstrap account has been **removed or re-passworded**
+- [ ] The production password is **not** documented, printed, screenshotted, or
+      stored in `.env`, a ticket, a log, or Git
+
+## G. Pre-launch gate
 
 Do not launch until **every** box above is ticked and:
 
-- [ ] A **verified backup exists** before the first production deploy
-- [ ] Step 6 executed with the decided strategy (**Option B** —
-      `npx prisma db push`), preceded by a verified backup and followed by
-      application verification
-- [ ] The backup from step 6 is retained for rollback
-- [ ] `runbook-deploy.md` steps 12–19 all pass on a staging hostname
+- [ ] Production `.env` passes the **full preflight table**
+      (`runbook-deploy.md` step 5a) — `NODE_ENV=production`, `HOST=127.0.0.1`,
+      `CORS_ORIGIN` = exact origin, absolute external `DATABASE_URL` and
+      `BACKUP_DIR`, `BACKUP_SCHEDULE_ENABLED=true`, `SQLITE_JOURNAL_MODE=delete`
+- [ ] Database safety gate (`runbook-deploy.md` §6a) — all 6 checks pass
+- [ ] Backup safety gate (`runbook-deploy.md` §18a) — all 9 checks pass
+- [ ] The final pre-launch order (`runbook-deploy.md` §H2) has been followed in
+      sequence, steps 1–24
