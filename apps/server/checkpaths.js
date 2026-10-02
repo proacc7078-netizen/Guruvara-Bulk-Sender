@@ -1,0 +1,11 @@
+const path = require('path');
+const fs = require('fs');
+const clientPath = require.resolve('@prisma/client');
+console.log('clientPath:', clientPath);
+console.log('clientPath exists:', fs.existsSync(clientPath));
+const clientPackagePath = path.join(path.dirname(clientPath), 'package.json');
+console.log('clientPackagePath:', clientPackagePath);
+console.log('clientPackagePath exists:', fs.existsSync(clientPackagePath));
+const binPath = path.join(path.dirname(clientPath), '../../.bin/prisma');
+console.log('binPath:', binPath);
+console.log('binPath exists:', fs.existsSync(binPath));

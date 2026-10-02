@@ -1,0 +1,87 @@
+# =============================================================================
+# Japa Message CMS — REFERENCE Caddyfile
+# =============================================================================
+#
+# ⚠️  REFERENCE TEMPLATE ONLY. Caddy is NOT installed and was NOT started.
+#     Caddy obtains and renews TLS certificates automatically — that requires a
+#     real DNS record and inbound 80/443. Substitute everything marked
+#     <<REPLACE>> and read the security note at the bottom before enabling it.
+#
+# Caddy is included as an alternative to nginx because it does the same job with
+# far less configuration. Use EITHER nginx OR Caddy — never both on port 80/443.
+#
+# Validate without starting (read-only):
+#     caddy validate --config Caddyfile --adapter caddyfile
+# -----------------------------------------------------------------------------
+
+{
+    email admin@example.com
+}
+
+cms.example.com {
+    encode zstd gzip
+
+    # ---------------------------------------------------------------------
+    # API — ONE Express process. Caddy forwards X-Forwarded-Proto and
+    # X-Forwarded-For automatically; no manual header directives are needed.
+    # ---------------------------------------------------------------------
+    handle /api/* {
+        reverse_proxy 127.0.0.1:3000 {
+            # Headroom above the 5 MB media upload limit and the 1 MB JSON limit.
+            transport http {
+                read_timeout  60s
+                write_timeout 60s
+            }
+        }
+    }
+
+    # ---------------------------------------------------------------------
+    # WEBHOOKS — must stay byte-exact for HMAC verification.
+    # ---------------------------------------------------------------------
+    # Caddy's reverse_proxy streams the body through unchanged. The one thing
+    # that can corrupt a signature is the `encode` directive above re-compressing
+    # the RESPONSE — that is harmless. Do NOT add any request-body rewriting,
+    # header manipulation, or `request_body` directive here.
+    handle /api/webhooks/* {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    # ---------------------------------------------------------------------
+    # React SPA — file_server with SPA history fallback.
+    # ---------------------------------------------------------------------
+    handle {
+        root * <<REPLACE>>/apps/web/dist
+
+        # History fallback: try the file, then rewrite to index.html so deep
+        # links like /recipients or /messages/123/edit resolve client-side.
+        try_files {path} /index.html
+
+        # Hashed assets are immutable. index.html must NOT be cached or browsers
+        # keep referencing stale asset filenames after a deploy.
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+
+        header /index.html Cache-Control "no-cache, must-revalidate"
+
+        file_server
+    }
+
+    log {
+        output file <<REPLACE>>/logs/cms-access.log
+    }
+}
+
+# =============================================================================
+# WINDOWS
+# =============================================================================
+# Caddy runs as a Windows service via `caddy run`/`caddy service install`
+# (operator action, not performed here). Use forward-slash paths, e.g.
+#     root C:/japa/apps/web/dist;
+#
+# SECURITY NOTE: Caddy's automatic HTTPS uses the public ACME/Let's Encrypt
+# service. The CMS is an internal/whatsapp tool — if the hostname is not public
+# (or the operator cannot accept the ACME disclosure), use an internal CA
+# instead:
+#     tls internal
+# ...and distribute the resulting root certificate to client devices.
+# -----------------------------------------------------------------------------

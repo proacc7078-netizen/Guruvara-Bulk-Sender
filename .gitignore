@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+# .env and every local .env.* may carry real production secrets and must never
+# be committed. Only the documented example templates are re-included below.
+.env
+.env.*
+!.env.example
+!**/*.env.example
+!docs/deployment/production.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+
+# Prisma
+# NOTE: migration history is deliberately NOT ignored. It must be version
+# controlled so deployments can replay or resolve it (see Production Hardening
+# Pass 1).
+
+# Local SQLite runtime state — the real development/production database and its
+# journal files must NEVER be committed (Pass 1/5: Option B keeps data local).
+prisma/data/
+prisma/japa-message-cms/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Storage uploads (local file storage)
+storage/uploads/
+
+# Local backup archives, restore staging and generated manifest/checksum sidecars
+storage/backups/
+storage/backups-*/
+.restore-journal/
+*.tar.gz
+*.tar.gz.manifest.json
+*.tar.gz.sha256
+
+# Stray local scratch dirs and root-level output files (dev debris, not source).
+# NOTE: regression suites are named test-*.cjs and remain tracked.
+tmp-*/
+test-*-files/
+dev/
+/tmp*.txt
+/tmp*.cjs
+/tmp*.log
+/tmp*.out
+/tmp*.err
+/t*.txt
+/t*.out
+/t*.err
+/*.bak
+
+# Temporary files
+*.tmp
+*.temp

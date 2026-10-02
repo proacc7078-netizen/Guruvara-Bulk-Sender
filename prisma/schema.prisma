@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Recipient {
+  id                 String                       @id @default(cuid())
+  name               String
+  whatsappNumber     String
+  normalizedPhone    String                       @unique
+  language           String?
+  category           String?
+  status             String                       @default("ACTIVE")
+  source             String
+  consentStatus      String?
+  consentTimestamp   DateTime?
+  notes              String?
+  lastMessageAt      DateTime?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  tags               RecipientTag[]
+  campaignRecipients CampaignRecipient[]
+  campaignExecutions CampaignExecutionRecipient[]
+}
+
+model RecipientTag {
+  id          String    @id @default(cuid())
+  recipientId String
+  tagId       String
+  assignedAt  DateTime  @default(now())
+  tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  recipient   Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([recipientId, tagId])
+}
+
+model Tag {
+  id         String         @id @default(cuid())
+  name       String         @unique
+  createdAt  DateTime       @default(now())
+  recipients RecipientTag[]
+}
+
+// Roles: ADMIN (full access) and PRO (messages, campaigns, audience, scheduling).
+// SQLite has no native enum support in Prisma, so the canonical values are
+// enforced by a CHECK constraint in the migration
+// (prisma/migrations/20260930000000_user_roles/migration.sql) plus the
+// application-level validation in apps/server/src/utils/roles.util.ts.
+// The default keeps every pre-existing user (including the seeded admin) as ADMIN.
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  role        String   @default("ADMIN")
+  // Pre-deployment profile: lightweight identity shown in the sidebar user block.
+  displayName String?
+  assignment  String?
+  // Reference to an existing Media row (never a filesystem path).
+  avatarMediaId String? @unique
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  avatar Media? @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+
+  @@index([role])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  identifier String
+  ipAddress String?
+  successful Boolean
+  createdAt DateTime @default(now())
+
+  @@index([identifier, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  actorUserId String?
+  actorEmail  String?
+  ipAddress   String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model Media {
+  id          String   @id @default(cuid())
+  messageId   String?  @unique
+  filename    String
+  mimeType    String
+  size        Int
+  storagePath String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  // Set when this Media row is a user avatar (see User.avatarMediaId).
+  userAvatar User?   @relation("UserAvatar")
+
+  @@index([messageId])
+}
+
+model Message {
+  id        String     @id @default(cuid())
+  name      String
+  body      String
+  language  String?
+  status    String     @default("DRAFT")
+  media     Media?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  messageId   String?
+  status      String   @default("DRAFT")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  message            Message?            @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  campaignRecipients CampaignRecipient[]
+  schedule           CampaignSchedule?
+  executions         CampaignExecution[]
+
+  @@index([messageId])
+}
+
+// Campaign schedule (WHEN, not WHAT). Phase 4.4 stores and manages the plan
+// only — no execution, dispatch or delivery state lives here.
+//
+// Phase 5.6 adds the scheduler's consumption/failure bookkeeping. These columns
+// are nullable and additive: the Phase 4.4 plan fields (scheduledAt, timezone)
+// and the SCHEDULED / CANCELLED vocabulary are unchanged. "Consumed" is
+// recorded as consumedAt (the unique CampaignExecution.scheduleId row remains
+// the hard idempotency guarantee); lastAttemptAt/lastError preserve a failed
+// attempt so a future retry/recovery can see why nothing was created.
+model CampaignSchedule {
+  id            String    @id @default(cuid())
+  campaignId    String    @unique
+  scheduledAt   DateTime
+  timezone      String
+  status        String    @default("SCHEDULED")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  consumedAt    DateTime?
+  lastAttemptAt DateTime?
+  lastError     String?
+
+  campaign  Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // A campaign may be re-run: one CampaignSchedule row can be consumed by
+  // several CampaignExecution rows (one per run). The scheduler still never
+  // creates a second execution for the same schedule in the same cycle — the
+  // consumedAt marker plus the per-run lookup provide that idempotency.
+  executions CampaignExecution[]
+
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+// CampaignExecution = WHAT should be executed at a scheduled point.
+// Durable in SQLite. No sending/dispatching happens here — that is
+// Phase 5 (WhatsApp adapter / worker). States: PENDING, RUNNING,
+// COMPLETED, FAILED, CANCELLED.
+model CampaignExecution {
+  id           String    @id @default(cuid())
+  campaignId   String
+  // No longer unique: the same campaign can be run again, producing a new
+  // execution. Each execution keeps its own immutable recipient/message/media
+  // snapshot, so previous runs are never mutated or destroyed.
+  scheduleId   String?
+  status       String    @default("PENDING")
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  campaign Campaign          @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  schedule CampaignSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  messageId       String?
+  messageName     String?
+  messageBody     String
+  messageLanguage String?
+  mediaId         String?
+  mediaPath       String?
+
+  recipients CampaignExecutionRecipient[]
+
+  @@index([campaignId])
+  @@index([scheduleId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+// Snapshot of which recipients were part of an execution, preserving
+// the phone number and name at execution-creation time so later
+// campaign edits do not silently change an already-created execution.
+model CampaignExecutionRecipient {
+  executionId         String
+  recipientId         String
+  whatsappNumber      String
+  name                String?
+  status              String    @default("PENDING")
+  providerMessageId   String?
+  errorCode           String?
+  errorMessage        String?
+  attemptCount        Int       @default(0)
+  nextAttemptAt       DateTime?
+  // Phase 5.9 — local send timestamp (recorded by the delivery worker on SENT)
+  sentAt              DateTime?
+  // Phase 5.8 — webhook delivery tracking
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  webhookErrorCode    String?
+  webhookErrorMessage String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  execution CampaignExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  recipient Recipient         @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@id([executionId, recipientId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([nextAttemptAt])
+  @@index([providerMessageId])
+}
+
+// Campaign audience membership (snapshot of the recipients selected for a campaign).
+// Membership only — no recipient personal data and no delivery/queue fields.
+model CampaignRecipient {
+  campaignId  String
+  recipientId String
+  createdAt   DateTime @default(now())
+
+  campaign  Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient Recipient @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, recipientId])
+  @@index([recipientId])
+}

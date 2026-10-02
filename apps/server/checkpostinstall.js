@@ -1,0 +1,11 @@
+const path = require('path');
+const fs = require('fs');
+const clientPath = require.resolve('@prisma/client');
+const clientDir = path.dirname(clientPath);
+console.log('clientDir:', clientDir);
+const scriptsDir = path.join(clientDir, 'scripts');
+console.log('scriptsDir:', scriptsDir);
+console.log('scriptsDir exists:', fs.existsSync(scriptsDir));
+const postinstallPath = path.join(scriptsDir, 'postinstall.js');
+console.log('postinstallPath:', postinstallPath);
+console.log('postinstallPath exists:', fs.existsSync(postinstallPath));

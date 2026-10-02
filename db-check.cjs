@@ -1,0 +1,34 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+async function main() {
+  console.log('=== Database Baseline Check ===');
+  const users = await prisma.user.findMany({ select: { id: true, email: true } });
+  console.log('Users:', users.length);
+  for (const u of users) console.log('  ', u.email);
+  const campaigns = await prisma.campaign.findMany({ select: { id: true, name: true } });
+  console.log('Campaigns:', campaigns.length, campaigns.map(c => c.name));
+  const schedules = await prisma.campaignSchedule.findMany({ select: { id: true, status: true } });
+  console.log('Schedules:', schedules.length, schedules.map(s => s.status));
+  const executions = await prisma.campaignExecution.findMany({ select: { id: true, status: true } });
+  console.log('Executions:', executions.length, executions.map(e => e.status));
+  const execRecipients = await prisma.campaignExecutionRecipient.findMany({ select: { executionId: true, recipientId: true, status: true } });
+  console.log('ExecRecipients:', execRecipients.length, execRecipients.map(e => `${e.executionId}:${e.recipientId}=${e.status}`));
+  const messages = await prisma.message.findMany({ select: { id: true, name: true } });
+  console.log('Messages:', messages.length, messages.map(m => m.name));
+  const recipients = await prisma.recipient.findMany({ select: { id: true, name: true } });
+  console.log('Recipients:', recipients.length, recipients.map(r => r.name));
+  const tags = await prisma.tag.findMany({ select: { id: true, name: true } });
+  console.log('Tags:', tags.length, tags.map(t => t.name));
+  const auditLogs = await prisma.auditLog.count();
+  console.log('AuditLogs:', auditLogs);
+  const loginAttempts = await prisma.loginAttempt.count();
+  console.log('LoginAttempts:', loginAttempts);
+  const testUsers = await prisma.user.findMany({ where: { email: { startsWith: 'phase' } } });
+  console.log('Test users (phase*):', testUsers.length);
+  const testCampaigns = await prisma.campaign.findMany({ where: { name: { startsWith: 'Phase5' } } });
+  console.log('Test campaigns (Phase5*):', testCampaigns.length);
+  const testRecipients = await prisma.recipient.findMany({ where: { name: { startsWith: 'Phase5' } } });
+  console.log('Test recipients (Phase5*):', testRecipients.length);
+  await prisma.$disconnect();
+}
+main().catch(e => { console.error(e); process.exit(1); });

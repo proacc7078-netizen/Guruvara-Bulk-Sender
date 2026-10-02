@@ -1,0 +1,39 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma-generate": "prisma generate --schema=../prisma/schema.prisma"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/multer": "^2.2.0",
+    "@types/uuid": "^10.0.0",
+    "argon2": "^0.45.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "multer": "^2.3.0",
+    "tar": "^7.5.22",
+    "uuid": "^14.0.2",
+    "xlsx": "^0.18.5",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express-session": "^1.19.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.23.13"
+  }
+}
