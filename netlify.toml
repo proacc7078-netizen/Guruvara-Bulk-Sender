@@ -1,0 +1,8 @@
+[build]
+  publish = "netlify-media-proxy"
+
+[[redirects]]
+  from = "/api/media/public/*"
+  to = "https://32.236.200.137/api/media/public/:splat"
+  status = 200
+  force = true
